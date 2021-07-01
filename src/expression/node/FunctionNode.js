@@ -1,9 +1,8 @@
 import { isAccessorNode, isFunctionAssignmentNode, isIndexNode, isNode, isSymbolNode } from '../../utils/is.js'
-
 import { escape } from '../../utils/string.js'
 import { hasOwnProperty } from '../../utils/object.js'
-import { map } from '../../utils/array.js'
 import { getSafeProperty, validateSafeMethod } from '../../utils/customs.js'
+import { createSubScope } from '../../utils/scope.js'
 import { factory } from '../../utils/factory.js'
 import { defaultTemplate, latexFunctions } from '../../utils/latex.js'
 
@@ -77,46 +76,67 @@ export const createFunctionNode = /* #__PURE__ */ factory(name, dependencies, ({
     }
 
     // compile arguments
-    const evalArgs = map(this.args, function (arg) {
-      return arg._compile(math, argNames)
-    })
+    const evalArgs = this.args.map((arg) => arg._compile(math, argNames))
 
     if (isSymbolNode(this.fn)) {
       // we can statically determine whether the function has an rawArgs property
       const name = this.fn.name
       const fn = name in math ? getSafeProperty(math, name) : undefined
-      const isRaw = (typeof fn === 'function') && (fn.rawArgs === true)
+      const isRaw = typeof fn === 'function' && fn.rawArgs === true
+
+      const resolveFn = (scope) => {
+        if (scope.has(name)) {
+          return scope.get(name)
+        }
+        if (name in math) {
+          return getSafeProperty(math, name)
+        }
+        return FunctionNode.onUndefinedFunction(name)
+      }
 
       if (isRaw) {
         // pass unevaluated parameters (nodes) to the function
         // "raw" evaluation
         const rawArgs = this.args
         return function evalFunctionNode (scope, args, context) {
-          return (name in scope ? getSafeProperty(scope, name) : fn)(rawArgs, math, Object.assign({}, scope, args))
+          const fn = resolveFn(scope)
+          return fn(rawArgs, math, createSubScope(scope, args), scope)
         }
       } else {
         // "regular" evaluation
-        if (evalArgs.length === 1) {
-          const evalArg0 = evalArgs[0]
-          return function evalFunctionNode (scope, args, context) {
-            return (name in scope ? getSafeProperty(scope, name) : fn)(evalArg0(scope, args, context))
+        switch (evalArgs.length) {
+          case 0: return function evalFunctionNode (scope, args, context) {
+            const fn = resolveFn(scope)
+            return fn()
           }
-        } else if (evalArgs.length === 2) {
-          const evalArg0 = evalArgs[0]
-          const evalArg1 = evalArgs[1]
-          return function evalFunctionNode (scope, args, context) {
-            return (name in scope ? getSafeProperty(scope, name) : fn)(evalArg0(scope, args, context), evalArg1(scope, args, context))
+          case 1: return function evalFunctionNode (scope, args, context) {
+            const fn = resolveFn(scope)
+            const evalArg0 = evalArgs[0]
+            return fn(
+              evalArg0(scope, args, context)
+            )
           }
-        } else {
-          return function evalFunctionNode (scope, args, context) {
-            return (name in scope ? getSafeProperty(scope, name) : fn).apply(null, map(evalArgs, function (evalArg) {
-              return evalArg(scope, args, context)
-            }))
+          case 2: return function evalFunctionNode (scope, args, context) {
+            const fn = resolveFn(scope)
+            const evalArg0 = evalArgs[0]
+            const evalArg1 = evalArgs[1]
+            return fn(
+              evalArg0(scope, args, context),
+              evalArg1(scope, args, context)
+            )
+          }
+          default: return function evalFunctionNode (scope, args, context) {
+            const fn = resolveFn(scope)
+            const values = evalArgs.map((evalArg) => evalArg(scope, args, context))
+            return fn(...values)
           }
         }
       }
-    } else if (isAccessorNode(this.fn) &&
-        isIndexNode(this.fn.index) && this.fn.index.isObjectProperty()) {
+    } else if (
+      isAccessorNode(this.fn) &&
+      isIndexNode(this.fn.index) &&
+      this.fn.index.isObjectProperty()
+    ) {
       // execute the function with the right context: the object of the AccessorNode
 
       const evalObject = this.fn.object._compile(math, argNames)
@@ -128,13 +148,16 @@ export const createFunctionNode = /* #__PURE__ */ factory(name, dependencies, ({
         validateSafeMethod(object, prop)
         const isRaw = object[prop] && object[prop].rawArgs
 
-        return isRaw
-          ? object[prop](rawArgs, math, Object.assign({}, scope, args)) // "raw" evaluation
-          : object[prop].apply(object, map(evalArgs, function (evalArg) { // "regular" evaluation
-            return evalArg(scope, args, context)
-          }))
+        if (isRaw) {
+          return object[prop](rawArgs, math, createSubScope(scope, args), scope) // "raw" evaluation
+        } else {
+          // "regular" evaluation
+          const values = evalArgs.map((evalArg) => evalArg(scope, args, context))
+          return object[prop].apply(object, values)
+        }
       }
-    } else { // node.fn.isAccessorNode && !node.fn.index.isObjectProperty()
+    } else {
+      // node.fn.isAccessorNode && !node.fn.index.isObjectProperty()
       // we have to dynamically determine whether the function has a rawArgs property
       const evalFn = this.fn._compile(math, argNames)
       const rawArgs = this.args
@@ -143,11 +166,13 @@ export const createFunctionNode = /* #__PURE__ */ factory(name, dependencies, ({
         const fn = evalFn(scope, args, context)
         const isRaw = fn && fn.rawArgs
 
-        return isRaw
-          ? fn(rawArgs, math, Object.assign({}, scope, args)) // "raw" evaluation
-          : fn.apply(fn, map(evalArgs, function (evalArg) { // "regular" evaluation
-            return evalArg(scope, args, context)
-          }))
+        if (isRaw) {
+          return fn(rawArgs, math, createSubScope(scope, args), scope) // "raw" evaluation
+        } else {
+          // "regular" evaluation
+          const values = evalArgs.map((evalArg) => evalArg(scope, args, context))
+          return fn.apply(fn, values)
+        }
       }
     }
   }
@@ -185,6 +210,14 @@ export const createFunctionNode = /* #__PURE__ */ factory(name, dependencies, ({
    */
   FunctionNode.prototype.clone = function () {
     return new FunctionNode(this.fn, this.args.slice(0))
+  }
+
+  /**
+   * Throws an error 'Undefined function {name}'
+   * @param {string} name
+   */
+  FunctionNode.onUndefinedFunction = function (name) {
+    throw new Error('Undefined function ' + name)
   }
 
   // backup Node's toString function

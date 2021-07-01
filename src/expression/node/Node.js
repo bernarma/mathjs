@@ -1,8 +1,9 @@
 import { isNode } from '../../utils/is.js'
 
 import { keywords } from '../keywords.js'
-import { deepStrictEqual, hasOwnProperty } from '../../utils/object.js'
+import { deepStrictEqual } from '../../utils/object.js'
 import { factory } from '../../utils/factory.js'
+import { createMap } from '../../utils/map.js'
 
 const name = 'Node'
 const dependencies = ['mathWithTransform']
@@ -46,7 +47,7 @@ export const createNode = /* #__PURE__ */ factory(name, dependencies, ({ mathWit
     const context = null
 
     function evaluate (scope) {
-      const s = scope || {}
+      const s = createMap(scope)
       _validateScope(s)
       return expr(s, args, context)
     }
@@ -238,19 +239,7 @@ export const createNode = /* #__PURE__ */ factory(name, dependencies, ({ mathWit
    * @return {string}
    */
   Node.prototype.toString = function (options) {
-    let customString
-    if (options && typeof options === 'object') {
-      switch (typeof options.handler) {
-        case 'object':
-        case 'undefined':
-          break
-        case 'function':
-          customString = options.handler(this, options)
-          break
-        default:
-          throw new TypeError('Object or function expected as callback')
-      }
-    }
+    const customString = this._getCustomString(options)
 
     if (typeof customString !== 'undefined') {
       return customString
@@ -285,19 +274,7 @@ export const createNode = /* #__PURE__ */ factory(name, dependencies, ({ mathWit
    * @return {string}
    */
   Node.prototype.toHTML = function (options) {
-    let customString
-    if (options && typeof options === 'object') {
-      switch (typeof options.handler) {
-        case 'object':
-        case 'undefined':
-          break
-        case 'function':
-          customString = options.handler(this, options)
-          break
-        default:
-          throw new TypeError('Object or function expected as callback')
-      }
-    }
+    const customString = this._getCustomString(options)
 
     if (typeof customString !== 'undefined') {
       return customString
@@ -333,22 +310,10 @@ export const createNode = /* #__PURE__ */ factory(name, dependencies, ({ mathWit
    * @return {string}
    */
   Node.prototype.toTex = function (options) {
-    let customTex
-    if (options && typeof options === 'object') {
-      switch (typeof options.handler) {
-        case 'object':
-        case 'undefined':
-          break
-        case 'function':
-          customTex = options.handler(this, options)
-          break
-        default:
-          throw new TypeError('Object or function expected as callback')
-      }
-    }
+    const customString = this._getCustomString(options)
 
-    if (typeof customTex !== 'undefined') {
-      return customTex
+    if (typeof customString !== 'undefined') {
+      return customString
     }
 
     return this._toTex(options)
@@ -364,6 +329,23 @@ export const createNode = /* #__PURE__ */ factory(name, dependencies, ({ mathWit
   Node.prototype._toTex = function (options) {
     // must be implemented by each of the Node implementations
     throw new Error('_toTex not implemented for ' + this.type)
+  }
+
+  /**
+   * Helper used by `to...` functions.
+   */
+  Node.prototype._getCustomString = function (options) {
+    if (options && typeof options === 'object') {
+      switch (typeof options.handler) {
+        case 'object':
+        case 'undefined':
+          return
+        case 'function':
+          return options.handler(this, options)
+        default:
+          throw new TypeError('Object or function expected as callback')
+      }
+    }
   }
 
   /**
@@ -388,11 +370,9 @@ export const createNode = /* #__PURE__ */ factory(name, dependencies, ({ mathWit
    * @param {Object} scope
    */
   function _validateScope (scope) {
-    for (const symbol in scope) {
-      if (hasOwnProperty(scope, symbol)) {
-        if (symbol in keywords) {
-          throw new Error('Scope contains an illegal symbol, "' + symbol + '" is a reserved keyword')
-        }
+    for (const symbol of [...keywords]) {
+      if (scope.has(symbol)) {
+        throw new Error('Scope contains an illegal symbol, "' + symbol + '" is a reserved keyword')
       }
     }
   }

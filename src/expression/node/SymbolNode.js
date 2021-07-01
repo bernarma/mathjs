@@ -68,19 +68,19 @@ export const createSymbolNode = /* #__PURE__ */ factory(name, dependencies, ({ m
       }
     } else if (name in math) {
       return function (scope, args, context) {
-        return name in scope
-          ? getSafeProperty(scope, name)
+        return scope.has(name)
+          ? scope.get(name)
           : getSafeProperty(math, name)
       }
     } else {
       const isUnit = isValuelessUnit(name)
 
       return function (scope, args, context) {
-        return name in scope
-          ? getSafeProperty(scope, name)
+        return scope.has(name)
+          ? scope.get(name)
           : isUnit
             ? new Unit(null, name)
-            : undef(name)
+            : SymbolNode.onUndefinedSymbol(name)
       }
     }
   }
@@ -107,7 +107,7 @@ export const createSymbolNode = /* #__PURE__ */ factory(name, dependencies, ({ m
    * Throws an error 'Undefined symbol {name}'
    * @param {string} name
    */
-  function undef (name) {
+  SymbolNode.onUndefinedSymbol = function (name) {
     throw new Error('Undefined symbol ' + name)
   }
 

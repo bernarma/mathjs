@@ -39,7 +39,7 @@ export const createRound = /* #__PURE__ */ factory(name, dependencies, ({ typed,
    *    math.round(-4.2)             // returns number -4
    *    math.round(-4.7)             // returns number -5
    *    math.round(3.22, 1)          // returns number 3.2
-   *    math.round(3.88, 1)          // returns number 3.8
+   *    math.round(3.88, 1)          // returns number 3.9
    *    math.round(-4.21, 1)         // returns number -4.2
    *    math.round(-4.71, 1)         // returns number -4.7
    *    math.round(math.pi, 3)       // returns number 3.142
@@ -151,7 +151,7 @@ const roundNumberSignatures = {
 
   'number, number': function (x, n) {
     if (!isInteger(n)) { throw new TypeError(NO_INT) }
-    if (n < 0 || n > 15) { throw new Error('Number of decimals in function round must be in te range of 0-15') }
+    if (n < 0 || n > 15) { throw new Error('Number of decimals in function round must be in the range of 0-15') }
 
     return roundNumber(x, n)
   }

@@ -332,6 +332,25 @@ export const createParse = /* #__PURE__ */ factory(name, dependencies, ({
           state.token += currentCharacter(state)
           next(state)
         }
+        if (currentCharacter(state) === '.') {
+          // this number has a radix point
+          state.token += '.'
+          next(state)
+          // get the digits after the radix
+          while (parse.isHexDigit(currentCharacter(state))) {
+            state.token += currentCharacter(state)
+            next(state)
+          }
+        } else if (currentCharacter(state) === 'i') {
+          // this number has a word size suffix
+          state.token += 'i'
+          next(state)
+          // get the word size
+          while (parse.isDigit(currentCharacter(state))) {
+            state.token += currentCharacter(state)
+            next(state)
+          }
+        }
         return
       }
 
@@ -343,6 +362,7 @@ export const createParse = /* #__PURE__ */ factory(name, dependencies, ({
         if (!parse.isDigit(currentCharacter(state))) {
           // this is no number, it is just a dot (can be dot notation)
           state.tokenType = TOKENTYPE.DELIMITER
+          return
         }
       } else {
         while (parse.isDigit(currentCharacter(state))) {

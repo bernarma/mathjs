@@ -174,7 +174,6 @@ describe('simplify', function () {
   })
 
   it('should preserve the value of BigNumbers', function () {
-    this.timeout(10000)
     const bigmath = math.create({ number: 'BigNumber', precision: 64 })
     assert.deepStrictEqual(bigmath.simplify('111111111111111111 + 111111111111111111').evaluate(), bigmath.evaluate('222222222222222222'))
     assert.deepStrictEqual(bigmath.simplify('1 + 111111111111111111').evaluate(), bigmath.evaluate('111111111111111112'))
@@ -330,6 +329,16 @@ describe('simplify', function () {
     // TODO(deal with accessor nodes) simplifyAndCompare('size(text)[1]', '11', {text: "hello world"})
   })
 
+  it('resolve() should substitute scoped constants from Map like scopes', function () {
+    assert.strictEqual(
+      math.simplify.resolve(math.parse('x+y'), new Map([['x', 1]])).toString(),
+      '1 + y'
+    ) // direct
+    simplifyAndCompare('x+y', 'x+y', new Map()) // operator
+    simplifyAndCompare('x+y', 'y+1', new Map([['x', 1]]))
+    simplifyAndCompare('x+y', 'y+1', new Map([['x', math.parse('1')]]))
+  })
+
   it('should keep implicit multiplication implicit', function () {
     const f = math.parse('2x')
     assert.strictEqual(f.toString({ implicit: 'hide' }), '2 x')
@@ -371,5 +380,12 @@ describe('simplify', function () {
       assert.ok(res && res.isNode)
       assert.strictEqual(res.toString(), '5 - 15 / (3 * x) ^ 2')
     })
+  })
+
+  it('should respect log arguments', function () {
+    simplifyAndCompareEval('log(e)', '1')
+    simplifyAndCompareEval('log(e,e)', '1')
+    simplifyAndCompareEval('log(3,5)', 'log(3,5)')
+    simplifyAndCompareEval('log(e,9)', 'log(e,9)')
   })
 })

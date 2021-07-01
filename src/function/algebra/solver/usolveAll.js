@@ -22,13 +22,13 @@ export const createUsolveAll = /* #__PURE__ */ factory(name, dependencies, ({ ty
    *
    * Syntax:
    *
-   *    math.usolve(U, b)
+   *    math.usolveAll(U, b)
    *
    * Examples:
    *
    *    const a = [[-2, 3], [2, 1]]
    *    const b = [11, 9]
-   *    const x = usolve(a, b)  // [ [[8], [9]] ]
+   *    const x = usolveAll(a, b)  // [ [[8], [9]] ]
    *
    * See also:
    *
@@ -58,7 +58,7 @@ export const createUsolveAll = /* #__PURE__ */ factory(name, dependencies, ({ ty
 
   function _denseBackwardSubstitution (m, b_) {
     // the algorithm is derived from
-    // https://www.overleaf.com/project/5e6c87c554a3190001a3fc93
+    // https://www.overleaf.com/read/csvgqdxggyjv
 
     // array of right-hand sides
     const B = [solveValidation(m, b_, true)._data.map(e => e[0])]
